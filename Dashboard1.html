@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Startup Financial Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f0f0f0; }
+        .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .input-group { margin-bottom: 10px; }
+        label { display: inline-block; width: 200px; }
+        input[type="number"] { width: 100px; }
+        button { background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+        th { background-color: #f2f2f2; }
+        .tooltip { position: relative; display: inline-block; border-bottom: 1px dotted black; cursor: help; }
+        .tooltip .tooltiptext { visibility: hidden; width: 200px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s; }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+        .chart-container { display: flex; justify-content: space-between; margin-top: 20px; }
+        .chart { width: 48%; height: 300px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SaaS Startup Financial Simulator</h1>
+        
+        <h2>Input Parameters</h2>
+        <div class="input-group">
+            <label for="price">Monthly subscription price:</label>
+            $<input type="number" id="price" value="50">
+            <span class="tooltip">ⓘ<span class="tooltiptext">The price you charge each customer per month for your SaaS product.</span></span>
+        </div>
+        <div class="input-group">
+            <label for="initialCustomers">Initial number of customers:</label>
+            <input type="number" id="initialCustomers" value="100">
+            <span class="tooltip">ⓘ<span class="tooltiptext">The number of customers you start with at the beginning of your projection.</span></span>
+        </div>
+        <div class="input-group">
+            <label for="growthRate">Monthly customer growth rate (%):</label>
+            <input type="number" id="growthRate" value="10">
+            <span class="tooltip">ⓘ<span class="tooltiptext">The percentage increase in customers each month.</span></span>
+        </div>
+        <div class="input-group">
+            <label for="churnRate">Monthly churn rate (%):</label>
+            <input type="number" id="churnRate" value="5">
+            <span class="tooltip">ⓘ<span class="tooltiptext">The percentage of customers you lose each month.</span></span>
+        </div>
+        <div class="input-group">
+            <label for="cpa">Cost per acquisition:</label>
+            $<input type="number" id="cpa" value="100">
+            <span class="tooltip">ⓘ<span class="tooltiptext">The cost to acquire each new customer.</span></span>
+        </div>
+        <div class="input-group">
+            <label for="fixedCosts">Monthly fixed costs:</label>
+            $<input type="number" id="fixedCosts" value="10000">
+            <span class="tooltip">ⓘ<span class="tooltiptext">Your monthly costs that don't change with the number of customers (e.g., salaries, rent).</span></span>
+        </div>
+        <div class="input-group">
+            <label for="variableCosts">Variable costs (% of revenue):</label>
+            <input type="number" id="variableCosts" value="20">
+            <span class="tooltip">ⓘ<span class="tooltiptext">Costs that increase with revenue, such as payment processing fees or customer support.</span></span>
+        </div>
+        
+        <button onclick="calculateFinancials()">Simulate</button>
+        
+        <h2>Financial Projections</h2>
+        <table id="projections">
+            <tr>
+                <th>Month</th>
+                <th>Customers</th>
+                <th>Revenue</th>
+                <th>Costs</th>
+                <th>Profit</th>
+                <th>Cash Balance</th>
+            </tr>
+        </table>
+
+        <div class="chart-container">
+            <div class="chart"><canvas id="revenueChart"></canvas></div>
+            <div class="chart"><canvas id="customerChart"></canvas></div>
+        </div>
+
+        <h2>Key Metrics</h2>
+        <p>Customer Lifetime Value (LTV): $<span id="ltv"></span></p>
+        <p>Customer Acquisition Cost (CAC): $<span id="cac"></span></p>
+        <p>LTV:CAC Ratio: <span id="ltvCacRatio"></span></p>
+        <p>Months to Profitability: <span id="monthsToProfitability"></span></p>
+    </div>
+
+    <script>
+        function calculateFinancials() {
+            const price = parseFloat(document.getElementById('price').value);
+            const initialCustomers = parseInt(document.getElementById('initialCustomers').value);
+            const growthRate = parseFloat(document.getElementById('growthRate').value) / 100;
+            const churnRate = parseFloat(document.getElementById('churnRate').value) / 100;
+            const cpa = parseFloat(document.getElementById('cpa').value);
+            const fixedCosts = parseFloat(document.getElementById('fixedCosts').value);
+            const variableCosts = parseFloat(document.getElementById('variableCosts').value) / 100;
+
+            let customers = initialCustomers;
+            let cashBalance = 0;
+            const table = document.getElementById('projections');
+            table.innerHTML = '<tr><th>Month</th><th>Customers</th><th>Revenue</th><th>Costs</th><th>Profit</th><th>Cash Balance</th></tr>';
+
+            const months = [];
+            const revenueData = [];
+            const customerData = [];
+            let totalRevenue = 0;
+            let totalNewCustomers = 0;
+            let monthsToProfitability = 0;
+
+            for (let month = 1; month <= 24; month++) {
+                const newCustomers = Math.round(customers * growthRate);
+                const churnedCustomers = Math.round(customers * churnRate);
+                customers = customers + newCustomers - churnedCustomers;
+
+                const revenue = customers * price;
+                const costs = fixedCosts + (revenue * variableCosts) + (newCustomers * cpa);
+                const profit = revenue - costs;
+                cashBalance += profit;
+
+                totalRevenue += revenue;
+                totalNewCustomers += newCustomers;
+
+                if (profit > 0 && monthsToProfitability === 0) {
+                    monthsToProfitability = month;
+                }
+
+                const row = table.insertRow(-1);
+                row.insertCell(0).textContent = month;
+                row.insertCell(1).textContent = customers.toFixed(0);
+                row.insertCell(2).textContent = '$' + revenue.toFixed(2);
+                row.insertCell(3).textContent = '$' + costs.toFixed(2);
+                row.insertCell(4).textContent = '$' + profit.toFixed(2);
+                row.insertCell(5).textContent = '$' + cashBalance.toFixed(2);
+
+                months.push(month);
+                revenueData.push(revenue);
+                customerData.push(customers);
+            }
+
+            // Calculate key metrics
+            const ltv = (price * (1 / churnRate)).toFixed(2);
+            const cac = cpa.toFixed(2);
+            const ltvCacRatio = (ltv / cac).toFixed(2);
+
+            document.getElementById('ltv').textContent = ltv;
+            document.getElementById('cac').textContent = cac;
+            document.getElementById('ltvCacRatio').textContent = ltvCacRatio;
+            document.getElementById('monthsToProfitability').textContent = monthsToProfitability || 'Not reached';
+
+            // Create charts
+            createChart('revenueChart', 'Monthly Revenue', months, revenueData);
+            createChart('customerChart', 'Customer Growth', months, customerData);
+        }
+
+        function createChart(canvasId, label, labels, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial calculation
+        calculateFinancials();
+    </script>
+</body>
+</html>
